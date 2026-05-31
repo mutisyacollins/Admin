@@ -1292,3 +1292,26 @@ td strong   { font-weight: 600; }
   .drawer-grid { grid-template-columns: 1fr; }
   .customer-drawer { padding: 16px; }
 }
+
+/* ── Simplified Dashboard Header ── */
+.dash-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+.dash-title {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: 'Syne', sans-serif;
+  letter-spacing: -0.3px;
+}
+.dash-sub {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+/* Slim stat cards for dashboard (no icon, clean) */
+.stat-card .stat-label { margin-bottom: 10px; }
+.stat-card h2 { font-size: 34px; }
