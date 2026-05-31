@@ -165,14 +165,56 @@ async function fetchTickets() {
     try { snapshot = await db.collection('supportTickets').orderBy('createdAt', 'desc').get(); }
     catch { snapshot = await db.collection('supportTickets').get(); }
 
-    allTickets = [];
-    snapshot.forEach(doc => allTickets.push({ id: doc.id, ...doc.data() }));
+    // Collect all uids that have no customerName so we can batch-resolve them
+    const rawTickets = [];
+    const uidsMissing = new Set();
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      rawTickets.push({ id: doc.id, ...data });
+      const hasName = !!(data.customerName || data.name);
+      if (!hasName && (data.uid || data.customerId)) {
+        uidsMissing.add(data.uid || data.customerId);
+      }
+    });
+
+    // Fetch user profiles for tickets that are missing a name
+    const userCache = {};
+    await Promise.all([...uidsMissing].map(async uid => {
+      try {
+        const doc = await db.collection('users').doc(uid).get();
+        if (doc.exists) userCache[uid] = doc.data();
+      } catch { /* ignore */ }
+    }));
+
+    // Merge resolved names into tickets
+    allTickets = rawTickets.map(t => {
+      const hasName = !!(t.customerName || t.name);
+      if (!hasName) {
+        const uid  = t.uid || t.customerId;
+        const user = uid ? userCache[uid] : null;
+        if (user) {
+          const fullName = user.fullName ||
+            `${user.firstName || ''} ${user.lastName || ''}`.trim() ||
+            user.name || '';
+          return {
+            ...t,
+            customerId:    uid,
+            customerName:  fullName,
+            name:          fullName,
+            phone:         t.phone         || user.phone         || user.phoneNumber || '',
+            accountNumber: t.accountNumber || user.accountNumber || '',
+            packageName:   t.packageName   || user.plan          || user.packageName || ''
+          };
+        }
+      }
+      return t;
+    });
+
     allTickets.sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt));
 
     updateTicketStats(allTickets);
     renderTickets(allTickets);
 
-    // Update sidebar badge
     const open = allTickets.filter(t => ['open','in-progress'].includes((t.status || 'open').toLowerCase())).length;
     updateSidebarTicketBadge(open);
   } catch (error) {
