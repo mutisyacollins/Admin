@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nextlink Networks | Admin Portal</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%2300d4ff'/><text y='24' x='5' font-size='20' font-weight='900' fill='%23020d18' font-family='sans-serif'>N</text></svg>" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-analytics-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- SIDEBAR OVERLAY (mobile) -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- ── LOGIN SCREEN ── -->
+<section id="login-screen" class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="brand-mark">N</div>
+      <div class="login-logo-text">
+        <strong>Nextlink</strong>
+        <span>Networks Admin Portal</span>
+      </div>
+    </div>
+
+    <h2>Welcome back</h2>
+    <p class="subtitle">Sign in with your administrator credentials to access the Nextlink management portal.</p>
+
+    <form id="login-form">
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" placeholder="admin@nextlink.co.ke" required autocomplete="email" />
+      </div>
+      <div class="form-group" style="margin-top:4px">
+        <label for="password">Password</label>
+        <div style="position:relative">
+          <input type="password" id="password" placeholder="Enter your password" required autocomplete="current-password" />
+          <button type="button" id="toggle-password" onclick="togglePasswordVisibility()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);padding:4px;font-size:14px;cursor:pointer">👁</button>
+        </div>
+      </div>
+      <button type="submit" id="login-btn">
+        <span id="login-btn-text">Login to Dashboard</span>
+        <span id="login-btn-spinner" style="display:none">
+          <span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(2,13,24,0.3);border-top-color:#020d18;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px"></span>Verifying…
+        </span>
+      </button>
+      <p id="login-error" class="error" style="min-height:18px"></p>
+    </form>
+  </div>
+</section>
+
+<!-- ── MAIN APP ── -->
+<section id="main-app" class="hidden">
+  <aside class="sidebar" id="sidebar">
+    <div class="logo">
+      <div class="logo-icon">N</div>
+      <div>
+        <strong>Nextlink</strong>
+        <span>Admin Portal</span>
+      </div>
+    </div>
+
+    <div class="nav-section-label">Main</div>
+    <ul id="sidebar-menu">
+      <li class="active" onclick="showSection('dashboard')">
+        <span class="nav-icon">⊞</span> Dashboard
+      </li>
+      <li onclick="showSection('customers')">
+        <span class="nav-icon">👥</span> Customers
+      </li>
+      <li onclick="showSection('billing')">
+        <span class="nav-icon">💳</span> Billing
+      </li>
+
+      <div class="nav-section-label" style="margin-top:8px">Manage</div>
+      <li onclick="showSection('packages')">
+        <span class="nav-icon">📦</span> Packages
+      </li>
+      <li onclick="showSection('support')">
+        <span class="nav-icon">🎧</span> Support
+        <span class="nav-badge" id="sidebar-open-tickets" style="display:none">0</span>
+      </li>
+      <li onclick="showSection('analytics')">
+        <span class="nav-icon">📊</span> Analytics
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <div style="padding:8px 10px;margin-bottom:10px;border-radius:var(--r);background:rgba(0,229,160,0.05);border:1px solid rgba(0,229,160,0.12)">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px">
+          <div style="width:7px;height:7px;background:var(--emerald);border-radius:50%;animation:pulse-anim 2.2s infinite"></div>
+          <span style="font-size:11px;color:var(--muted);font-weight:600">FIREBASE CONNECTED</span>
+        </div>
+        <span id="sidebar-admin-email" style="font-size:11px;color:var(--muted2);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+      </div>
+      <button class="logout-btn" onclick="logout()">
+        <span>⎋</span> Sign Out
+      </button>
+    </div>
+  </aside>
+
+  <main class="content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="mobile-menu-btn" onclick="openSidebar()" aria-label="Open menu">☰</button>
+        <div class="topbar-left">
+          <h1 id="page-title">Dashboard</h1>
+          <p id="welcome-text">Welcome back, Nextlink Administrator</p>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <button class="btn-ghost" onclick="refreshCurrentSection()" title="Refresh data" style="padding:8px 10px;font-size:17px;border-radius:var(--r-sm)" id="refresh-btn">↻</button>
+        <div class="topbar-badge">
+          <span class="pulse"></span>
+          Live
+        </div>
+      </div>
+    </header>
+
+    <section id="dashboard" class="section"></section>
+    <section id="customers" class="section hidden"></section>
+    <section id="billing"   class="section hidden"></section>
+    <section id="packages"  class="section hidden"></section>
+    <section id="support"   class="section hidden"></section>
+    <section id="analytics" class="section hidden"></section>
+  </main>
+</section>
+
+<script src="firebase-config.js"></script>
+<script src="utils.js"></script>
+<script src="dashboard.js"></script>
+<script src="customers.js"></script>
+<script src="billing.js"></script>
+<script src="packages.js"></script>
+<script src="support.js"></script>
+<script src="analytics.js"></script>
+<script src="customer-profile-drawer.js"></script>
+<script src="auth.js"></script>
+</body>
+</html>
