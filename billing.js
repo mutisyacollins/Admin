@@ -1,7 +1,7 @@
 // ==================== BILLING.JS ====================
 
 let allBills = [];
-let allCustomers = [];
+let billingCustomers = [];
 let selectedBillCustomer = null;
 
 async function loadBilling() {
@@ -30,7 +30,7 @@ async function loadBilling() {
       <div class="toolbar triple">
         <div class="search-wrap">
           <span class="search-icon">🔍</span>
-          <input type="text" id="bill-search" placeholder="Search customer, status, date…" oninput="debouncedFilterBills()" />
+          <input type="text" id="bill-search" placeholder="Search customer, account, status, date…" oninput="debouncedFilterBills()" />
         </div>
         <select id="bill-status-filter" onchange="filterBills()">
           <option value="">All Status</option>
@@ -67,7 +67,7 @@ async function loadBilling() {
 
           <div>
             <label>Customer Name</label>
-            <input type="text" id="bill-customerName" readonly placeholder="Selected customer name" />
+            <input type="text" id="bill-customerName" readonly placeholder="Selected customer" />
           </div>
 
           <div>
@@ -96,7 +96,7 @@ async function loadBilling() {
 
           <div class="full">
             <label>Description</label>
-            <input type="text" id="bill-description" placeholder="Monthly internet subscription — June 2026" />
+            <input type="text" id="bill-description" placeholder="Monthly internet subscription" />
           </div>
         </div>
 
@@ -118,17 +118,22 @@ async function fetchCustomersForBilling() {
   try {
     const snapshot = await db.collection('users').get();
 
-    allCustomers = [];
+    billingCustomers = [];
+
     snapshot.forEach(doc => {
       const data = doc.data();
 
       const firstName = data.firstName || '';
       const lastName = data.lastName || '';
-      const fullName = data.name || `${firstName} ${lastName}`.trim() || data.email || 'Unnamed Customer';
+      const fullName =
+        data.name ||
+        data.fullName ||
+        `${firstName} ${lastName}`.trim() ||
+        data.email ||
+        'Unnamed Customer';
 
-      allCustomers.push({
+      billingCustomers.push({
         uid: doc.id,
-        id: doc.id,
         name: fullName,
         email: data.email || '',
         phone: data.phone || '',
@@ -137,10 +142,10 @@ async function fetchCustomersForBilling() {
       });
     });
 
-    allCustomers.sort((a, b) => a.name.localeCompare(b.name));
+    billingCustomers.sort((a, b) => a.name.localeCompare(b.name));
   } catch (error) {
     console.error('Customer loading error:', error);
-    allCustomers = [];
+    billingCustomers = [];
   }
 }
 
@@ -148,14 +153,14 @@ function populateCustomerDropdown(selectedUid = '') {
   const select = document.getElementById('bill-customer-select');
   if (!select) return;
 
-  if (!allCustomers.length) {
+  if (!billingCustomers.length) {
     select.innerHTML = `<option value="">No customers found</option>`;
     return;
   }
 
   select.innerHTML = `
     <option value="">Select customer</option>
-    ${allCustomers.map(c => `
+    ${billingCustomers.map(c => `
       <option value="${escapeHtml(c.uid)}" ${c.uid === selectedUid ? 'selected' : ''}>
         ${escapeHtml(c.name)} ${c.accountNumber ? `— ${escapeHtml(c.accountNumber)}` : ''}
       </option>
@@ -165,7 +170,7 @@ function populateCustomerDropdown(selectedUid = '') {
 
 function handleBillCustomerSelect() {
   const uid = document.getElementById('bill-customer-select').value;
-  selectedBillCustomer = allCustomers.find(c => c.uid === uid) || null;
+  selectedBillCustomer = billingCustomers.find(c => c.uid === uid) || null;
 
   document.getElementById('bill-customerName').value = selectedBillCustomer?.name || '';
   document.getElementById('bill-accountNumber').value = selectedBillCustomer?.accountNumber || '';
@@ -174,8 +179,8 @@ function handleBillCustomerSelect() {
 async function fetchBills() {
   try {
     const snapshot = await db.collection('billing').get();
-    allBills = [];
 
+    allBills = [];
     snapshot.forEach(doc => allBills.push({ id: doc.id, ...doc.data() }));
 
     allBills.sort((a, b) => getMillis(b.createdAt) - getMillis(a.createdAt));
@@ -190,7 +195,9 @@ async function fetchBills() {
 }
 
 function updateBillStats(bills) {
-  let paid = 0, pending = 0, revenue = 0;
+  let paid = 0;
+  let pending = 0;
+  let revenue = 0;
 
   bills.forEach(b => {
     const status = (b.paymentStatus || b.status || 'pending').toLowerCase();
@@ -228,6 +235,7 @@ function filterBills() {
     ].join(' ').toLowerCase();
 
     const bStatus = (b.paymentStatus || b.status || 'pending').toLowerCase();
+
     return combined.includes(term) && (!status || bStatus === status);
   });
 
@@ -293,7 +301,8 @@ function openBillModal(bill = null) {
 
   if (bill) {
     const uid = bill.uid || bill.customerId || '';
-    selectedBillCustomer = allCustomers.find(c => c.uid === uid) || null;
+
+    selectedBillCustomer = billingCustomers.find(c => c.uid === uid) || null;
 
     document.getElementById('bill-modal-title').textContent = 'Edit Bill';
     document.getElementById('bill-edit-id').value = bill.id;
@@ -325,10 +334,12 @@ function closeBillModal() {
 
 function editBill(id) {
   const bill = allBills.find(b => b.id === id);
+
   if (!bill) {
     showToast('Bill not found.', 'error');
     return;
   }
+
   openBillModal(bill);
 }
 
@@ -344,7 +355,7 @@ async function saveBill() {
 
   errorEl.textContent = '';
 
-  const customer = allCustomers.find(c => c.uid === selectedUid);
+  const customer = billingCustomers.find(c => c.uid === selectedUid);
 
   if (!customer) {
     errorEl.textContent = 'Please select a valid customer.';
@@ -370,9 +381,9 @@ async function saveBill() {
       accountNumber: customer.accountNumber || '',
       packageName: customer.plan || '',
 
-      amount,
-      dueDate,
-      paymentStatus,
+      amount: amount,
+      dueDate: dueDate,
+      paymentStatus: paymentStatus,
       status: paymentStatus,
       description: description || 'Monthly internet subscription',
 
@@ -391,7 +402,8 @@ async function saveBill() {
     closeBillModal();
     await fetchBills();
   } catch (error) {
-    errorEl.textContent = error.message;
+    console.error('Save bill error:', error);
+    errorEl.textContent = error.message || 'Failed to save bill.';
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Save Bill';
@@ -411,7 +423,8 @@ async function markBillPaid(id) {
 
     showToast('Bill marked as paid.', 'success');
     await fetchBills();
-  } catch {
+  } catch (error) {
+    console.error('Mark paid error:', error);
     showToast('Failed to update bill.', 'error');
   }
 }
@@ -423,7 +436,8 @@ async function deleteBill(id) {
     await db.collection('billing').doc(id).delete();
     showToast('Bill deleted.', 'success');
     await fetchBills();
-  } catch {
+  } catch (error) {
+    console.error('Delete bill error:', error);
     showToast('Failed to delete bill.', 'error');
   }
 }
